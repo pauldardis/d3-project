@@ -1,37 +1,40 @@
 queue()
     .defer(d3.csv, "data/Salaries.csv")
     .await(makeGraphs);
-    
+
 function makeGraphs(error, salaryData) {
-    var ndx = crossfilter(salaryData);
-    
-    salaryData.forEach(function(d){
-        d.salary = parseInt(d.salary);
-        d.yrs_since_phd = parseInt(d["yrs.since.phd"]);
+    var ndx = crossfilter(salaryData); // ndx is just a name that we are using data it could be called anything 
+
+    salaryData.forEach(function(d) { // by default its assuming salery in the imported file
+        d.salary = parseInt(d.salary); //  is text so this is converting it to an intiger
         d.yrs_service = parseInt(d["yrs.service"]);
+        d.yrs_since_phd = parseInt(d["yrs.since.phd"]);
     })
+
+
+ 
+    show_discipline_selector(ndx); //this is providing a drop down selector box
     
-    show_discipline_selector(ndx);
-    
-    show_percent_that_are_professors(ndx, "Female", "#percent-of-women-professors");
+     show_percent_that_are_professors(ndx, "Female", "#percent-of-women-professors");
     show_percent_that_are_professors(ndx, "Male", "#percent-of-men-professors");
     
     show_gender_balance(ndx);
     show_average_salary(ndx);
     show_rank_distribution(ndx);
-    
+
     show_service_to_salary_correlation(ndx);
+
+
     show_phd_to_salary_correlation(ndx);
     
-    dc.renderAll();
+    dc.renderAll(); //rendering all the graphs
 }
 
-
 function show_discipline_selector(ndx) {
-    var dim = ndx.dimension(dc.pluck('discipline'));
+    var dim = ndx.dimension(dc.pluck('discipline')); //this is using discipline from the data
     var group = dim.group();
-    
-    dc.selectMenu("#discipline-selector")
+
+    dc.selectMenu('#discipline-selector') //targiting the div
         .dimension(dim)
         .group(group);
 }
@@ -75,14 +78,19 @@ function show_percent_that_are_professors(ndx, gender, element) {
 }
 
 
+
+
+
+
+
 function show_gender_balance(ndx) {
-    var dim = ndx.dimension(dc.pluck('sex'));
+    var dim = ndx.dimension(dc.pluck('sex')); //this is using sex from the data
     var group = dim.group();
-    
+
     dc.barChart("#gender-balance")
         .width(400)
         .height(300)
-        .margins({top: 10, right: 50, bottom: 30, left: 50})
+        .margins({ top: 10, right: 50, bottom: 30, left: 50 })
         .dimension(dim)
         .group(group)
         .transitionDuration(500)
@@ -92,10 +100,9 @@ function show_gender_balance(ndx) {
         .yAxis().ticks(20);
 }
 
-
 function show_average_salary(ndx) {
     var dim = ndx.dimension(dc.pluck('sex'));
-    
+
     function add_item(p, v) {
         p.count++;
         p.total += v.salary;
@@ -105,18 +112,19 @@ function show_average_salary(ndx) {
 
     function remove_item(p, v) {
         p.count--;
-        if(p.count == 0) {
+        if (p.count == 0) {
             p.total = 0;
             p.average = 0;
-        } else {
+        }
+        else {
             p.total -= v.salary;
             p.average = p.total / p.count;
         }
         return p;
     }
-    
+
     function initialise() {
-        return {count: 0, total: 0, average: 0};
+        return { count: 0, total: 0, average: 0 };
     }
 
     var averageSalaryByGender = dim.group().reduce(add_item, remove_item, initialise);
@@ -124,11 +132,11 @@ function show_average_salary(ndx) {
     dc.barChart("#average-salary")
         .width(400)
         .height(300)
-        .margins({top: 10, right: 50, bottom: 30, left: 50})
+        .margins({ top: 10, right: 50, bottom: 30, left: 50 })
         .dimension(dim)
         .group(averageSalaryByGender)
-        .valueAccessor(function(d){
-            return d.value.average.toFixed(2);
+        .valueAccessor(function(d) { // need to undersand what this is doing 
+            return d.value.average.toFixed(2); // the toFixed is setting it to 2 decimal places
         })
         .transitionDuration(500)
         .x(d3.scale.ordinal())
@@ -139,35 +147,63 @@ function show_average_salary(ndx) {
 }
 
 
+
 function show_rank_distribution(ndx) {
-    
+
+    var dim = ndx.dimension(dc.pluck('sex'));
+
+    var profByGender = dim.group().reduce(
+        function(p, v) {
+            p.total++;
+            if (v.rank == rank) {
+                p.match++;
+            }
+            return p;
+        },
+        function(p, v) {
+            p.total--;
+            if (v.rank == rank) {
+                p.match--;
+            }
+            return p;
+
+        },
+        function() {
+            return { total: 0, match: 0 };
+        }
+    );
+
     function rankByGender(dimension, rank) {
         return dimension.group().reduce(
-            function (p, v) {
+            function(p, v) {
                 p.total++;
-                if(v.rank == rank) {
+                if (v.rank == rank) {
                     p.match++;
                 }
                 return p;
             },
-            function (p, v) {
+            function(p, v) {
                 p.total--;
-                if(v.rank == rank) {
+                if (v.rank == rank) {
                     p.match--;
                 }
                 return p;
+
             },
-            function () {
-                return {total: 0, match: 0};
+            function() {
+                return { total: 0, match: 0 };
             }
         );
+
     }
-    
-    var dim = ndx.dimension(dc.pluck("sex"));
+
+
     var profByGender = rankByGender(dim, "Prof");
     var asstProfByGender = rankByGender(dim, "AsstProf");
     var assocProfByGender = rankByGender(dim, "AssocProf");
-    
+
+    console.log(profByGender.all());
+
     dc.barChart("#rank-distribution")
         .width(400)
         .height(300)
@@ -176,34 +212,35 @@ function show_rank_distribution(ndx) {
         .stack(asstProfByGender, "Asst Prof")
         .stack(assocProfByGender, "Assoc Prof")
         .valueAccessor(function(d) {
-            if(d.value.total > 0) {
+            if (d.value.total > 0) {
                 return (d.value.match / d.value.total) * 100;
-            } else {
+            }
+            else {
                 return 0;
             }
         })
         .x(d3.scale.ordinal())
         .xUnits(dc.units.ordinal)
         .legend(dc.legend().x(320).y(20).itemHeight(15).gap(5))
-        .margins({top: 10, right: 100, bottom: 30, left: 30});
+        .margins({ top: 10, right: 100, bottom: 30, left: 30 })
 }
 
 
 function show_service_to_salary_correlation(ndx) {
-    
+
     var genderColors = d3.scale.ordinal()
-        .domain(["Female", "Male"])
-        .range(["pink", "blue"]);
-    
+        .domain(["female", "Male"])
+        .range(["pink", "blue"])
+
     var eDim = ndx.dimension(dc.pluck("yrs_service"));
     var experienceDim = ndx.dimension(function(d) {
-       return [d.yrs_service, d.salary, d.rank, d.sex];
-    });
+        return [d.yrs_service, d.salary, d.rank, d.sex];
+    })
     var experienceSalaryGroup = experienceDim.group();
-    
+
     var minExperience = eDim.bottom(1)[0].yrs_service;
     var maxExperience = eDim.top(1)[0].yrs_service;
-    
+
     dc.scatterPlot("#service-salary")
         .width(800)
         .height(400)
@@ -211,36 +248,36 @@ function show_service_to_salary_correlation(ndx) {
         .brushOn(false)
         .symbolSize(8)
         .clipPadding(10)
+        .yAxisLabel("Salery")
         .xAxisLabel("Years Of Service")
         .title(function(d) {
             return d.key[2] + " earned " + d.key[1];
         })
-        .colorAccessor(function (d) {
+        .colorAccessor(function(d) {
             return d.key[3];
         })
         .colors(genderColors)
         .dimension(experienceDim)
         .group(experienceSalaryGroup)
-        .margins({top: 10, right: 50, bottom: 75, left: 75});
+        .margins({ top: 10, right: 50, bottom: 75, left: 75 });
 }
 
 
-
 function show_phd_to_salary_correlation(ndx) {
-    
+
     var genderColors = d3.scale.ordinal()
-        .domain(["Female", "Male"])
-        .range(["pink", "blue"]);
-    
+        .domain(["female", "Male"])
+        .range(["pink", "blue"])
+
     var pDim = ndx.dimension(dc.pluck("yrs_since_phd"));
     var phdDim = ndx.dimension(function(d) {
-       return [d.yrs_since_phd, d.salary, d.rank, d.sex];
-    });
+        return [d.yrs_since_phd, d.salary, d.rank, d.sex];
+    })
     var phdSalaryGroup = phdDim.group();
-    
+
     var minPhd = pDim.bottom(1)[0].yrs_since_phd;
     var maxPhd = pDim.top(1)[0].yrs_since_phd;
-    
+
     dc.scatterPlot("#phd-salary")
         .width(800)
         .height(400)
@@ -248,15 +285,17 @@ function show_phd_to_salary_correlation(ndx) {
         .brushOn(false)
         .symbolSize(8)
         .clipPadding(10)
-        .xAxisLabel("Years Since PhD")
+        .yAxisLabel("Salary")
+        .xAxisLabel("Years since Phd")
         .title(function(d) {
             return d.key[2] + " earned " + d.key[1];
         })
-        .colorAccessor(function (d) {
+        .colorAccessor(function(d) {
             return d.key[3];
         })
         .colors(genderColors)
         .dimension(phdDim)
         .group(phdSalaryGroup)
-        .margins({top: 10, right: 50, bottom: 75, left: 75});
+        .margins({ top: 10, right: 50, bottom: 75, left: 75 });
+
 }
